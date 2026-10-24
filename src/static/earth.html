@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MicroAware ground station</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/earth.css">
+</head>
+<body class="earth">
+  <header class="bar">
+    <div class="brand">
+      <span class="wordmark">Earth ground station</span>
+      <span class="module">Receiving MicroAware alerts from habitat module A over <span id="linkName">the link</span></span>
+    </div>
+    <div class="state" id="mode" role="status" aria-live="polite">Connecting</div>
+    <dl class="meta">
+      <div><dt>Planetary Kp</dt><dd id="kp">–</dd></div>
+      <div><dt>Flare</dt><dd id="flare">None</dd></div>
+    </dl>
+  </header>
+
+  <main class="ground">
+    <section class="controls" aria-label="Flare controls">
+      <button type="button" data-flare="30">Solar flare (30% loss)</button>
+      <button type="button" data-flare="70">Extreme flare (70% loss)</button>
+      <button type="button" data-flare="0">End flare</button>
+      <button type="button" class="primary" id="resend" disabled>Send latest alert again</button>
+      <p id="controlNote" class="note">Flares last 30 seconds, then the Sun switches itself off.</p>
+    </section>
+
+    <section class="copies" aria-label="Latest alert as received">
+      <figure class="copy">
+        <figcaption>Sent unprotected</figcaption>
+        <canvas id="rawImg" width="96" height="72"></canvas>
+        <p class="verdict" id="rawVerdict">Waiting for the first alert.</p>
+      </figure>
+      <figure class="copy">
+        <figcaption>Sent with Storm Shield</figcaption>
+        <canvas id="shieldImg" width="96" height="72"></canvas>
+        <p class="verdict" id="shieldVerdict">Waiting for the first alert.</p>
+      </figure>
+    </section>
+
+    <section class="received" aria-label="Decoded alert">
+      <h2>Decoded alert</h2>
+      <div id="decoded"><p class="quiet">Nothing decoded yet.</p></div>
+    </section>
+
+    <section class="numbers" aria-label="Link measurements">
+      <h2>Measured on this message</h2>
+      <dl id="metrics"></dl>
+    </section>
+
+    <section class="weather" aria-label="Space weather">
+      <h2>Space weather</h2>
+      <div id="weather"><p class="quiet">Waiting for NOAA.</p></div>
+    </section>
+
+    <section class="history" aria-label="Message history">
+      <h2>Messages</h2>
+      <table>
+        <thead><tr><th scope="col">Message</th><th scope="col">Alert</th><th scope="col">Protection</th><th scope="col">Unprotected</th><th scope="col">Storm Shield</th></tr></thead>
+        <tbody id="history"><tr><td colspan="5" class="quiet">No messages yet.</td></tr></tbody>
+      </table>
+    </section>
+  </main>
+  <script src="/static/earth.js"></script>
+</body>
+</html>

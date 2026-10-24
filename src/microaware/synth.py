@@ -12,11 +12,10 @@ def fan(seconds, seed=0, hz=100):
     return (x + 0.02 * rng.standard_normal(t.size)).astype(np.float32)
 
 
-def whine(x, hz=3000, level=0.3):
-    """Bearing whine: a tone plus 2 harmonics, slowly rising in pitch."""
-    t = np.arange(len(x)) / SR
-    f = hz * (1 + 0.02 * t / max(t[-1], 1e-9))
-    phase = 2 * np.pi * np.cumsum(f) / SR
+def whine(x, hz=3000, level=0.3, t0=0.0):
+    """Bearing whine: a tone plus 2 harmonics, slowly rising in pitch. t0 keeps phase continuous across chunks."""
+    t = t0 + np.arange(len(x)) / SR
+    phase = 2 * np.pi * hz * (t + 0.001 * t**2)  # pitch rises 0.2% per second
     tone = sum(np.sin(h * phase) / h for h in (1, 2, 3))
     return (x + level * x.std() * tone).astype(np.float32)
 

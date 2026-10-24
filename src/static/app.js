@@ -11,12 +11,15 @@ const STATES = {
   nominal: ["Nominal", "nominal"],
   abnormal: ["Fault detected", "abnormal"],
 };
-const SOURCES = { mic: "Microphone", synth: "Simulated fan", none: "Nothing" };
+const SOURCES = { mic: "Microphone", synth: "Simulated fan", file: "Recorded run", none: "Nothing" };
 
 const scores = [];
 let rawRange = { lo: -60, hi: 0 };
 let alertSig = "";
 let bandsSig = "";
+let soundOn = false;
+let lastAlerts = [];
+let spoken = null; // alert ids already spoken; null until the first tick so old alerts stay quiet
 
 // Color ramps as [stop, r, g, b]; inputs are clamped to 0..1.
 const RAW_RAMP = [[0, 30, 42, 50], [0.55, 61, 110, 143], [1, 230, 234, 236]];
@@ -111,7 +114,7 @@ function renderBands(bands, abnormal) {
 }
 
 function renderAlerts(alerts) {
-  const sig = alerts.map((a) => a.id + a.state).join();
+  const sig = alerts.map((a) => a.id + a.state + !!a.explanation).join();
   if (sig === alertSig) return;
   alertSig = sig;
   const ol = $("alerts");
@@ -121,7 +124,7 @@ function renderAlerts(alerts) {
   }
   ol.innerHTML = alerts
     .map((a) => {
-      const what = a.label ? a.label : "unknown anomaly";
+      const what = a.label ? `${a.label.replace("_", " ")} (${Math.round(a.label_conf * 100)}% sure)` : "unknown anomaly";
       const band = a.evidence.top_bands[0];
       const where = band ? ` Loudest change at ${band.band_hz.replace("-", "–")} Hz, ${band.delta_db > 0 ? "+" : ""}${band.delta_db} dB.` : "";
       const time = a.t.slice(11, 19);
@@ -129,19 +132,60 @@ function renderAlerts(alerts) {
       return `<li class="alert" data-state="${a.state}">
         <h3>Fan A: ${what}</h3>
         <p class="when">${a.id} at ${time} UTC</p>
-        <p>Score ${fmt(a.evidence.score)}, threshold ${fmt(a.evidence.threshold)}.${where}</p>
-        ${ack}
+        ${a.explanation ? `<p class="spoken">${esc(a.explanation.spoken)}</p>
+        <ol class="checks">${a.explanation.checks.map((c) => `<li>${esc(c)}</li>`).join("")}</ol>` : '<p class="when">Explaining…</p>'}
+        <p class="evidence">Score ${fmt(a.evidence.score)}, threshold ${fmt(a.evidence.threshold)}.${where}</p>
+        <div class="actions">${ack}${a.explanation ? `<button type="button" data-replay="${a.id}">Play again</button>` : ""}</div>
       </li>`;
     })
     .join("");
 }
 
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+
+// Plays an alert's explanation, telling the server so our own voice isn't scored as a fault.
+function speak(a) {
+  if (!soundOn || !a.explanation) return;
+  const done = () => api("POST", "/api/guard", { playing: false });
+  api("POST", "/api/guard", { playing: true, seconds: 30 });
+  if (a.audio) {
+    const audio = new Audio(a.audio);
+    audio.onended = audio.onerror = done;
+    audio.play().catch(done);
+  } else {
+    const u = new SpeechSynthesisUtterance(a.explanation.spoken);
+    u.onend = u.onerror = done;
+    speechSynthesis.speak(u);
+  }
+}
+
+function speakNew(alerts) {
+  if (spoken === null) {
+    spoken = new Set(alerts.map((a) => a.id));
+    return;
+  }
+  for (const a of alerts) {
+    if (a.explanation && a.state === "active" && !spoken.has(a.id)) {
+      spoken.add(a.id);
+      speak(a);
+    }
+  }
+}
+
 function render(t) {
   const [label, level] = STATES[t.state] || [t.state, "none"];
-  $("state").textContent = t.state === "recording" ? `${label} ${Math.round((t.record_progress || 0) * 100)}%` : label;
+  const what = t.record_label ? ` ${t.record_label.replace("_", " ")}` : "";
+  $("state").textContent = t.state === "recording" ? `${label}${what} ${Math.round((t.record_progress || 0) * 100)}%` : label;
   $("state").dataset.level = level;
   document.body.dataset.level = level;
   $("source").textContent = SOURCES[t.source] || t.source;
+  if (t.link) {
+    const sent = t.link.last_minute;
+    const mode = t.link.mode[0].toUpperCase() + t.link.mode.slice(1);
+    $("link").textContent = sent.messages ? `${mode}, ${sent.shield_delivered} of ${sent.messages} arrived` : mode;
+  }
 
   const waiting = ["no_baseline", "recording", "training"].includes(t.state);
   $("empty").hidden = t.state !== "no_baseline";
@@ -168,8 +212,15 @@ function render(t) {
     $("scaleOut").textContent = `${Number(t.threshold_scale).toFixed(1)}×`;
   }
 
+  const counts = Object.entries(t.labels || {});
+  $("labelStatus").textContent =
+    (counts.length ? `Clips: ${counts.map(([k, n]) => `${k.replace("_", " ")} ${n}`).join(", ")}.` : "No clips recorded yet.") +
+    (t.labeler ? ` Trained on: ${t.labeler.map((l) => l.replace("_", " ")).join(", ")}.` : "");
+
   renderBands(t.top_bands, t.state === "abnormal");
   renderAlerts(t.alerts);
+  speakNew(t.alerts);
+  lastAlerts = t.alerts;
 }
 
 function connect() {
@@ -188,18 +239,93 @@ async function api(method, path, body) {
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) alert(`Request failed: ${(await res.json()).detail || res.status}`);
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => ({}))).detail;
+    alert(typeof detail === "string" ? detail : `Request failed (${res.status})`);
+  }
 }
 
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   if (b.dataset.action === "record") api("POST", "/api/baseline", { seconds: Number($("recSeconds").value) || 90 });
+  if (b.dataset.action === "record-label") api("POST", "/api/labels/record", { label: $("faultLabel").value, seconds: 15 });
+  if (b.dataset.action === "train") api("POST", "/api/labeler/train");
   if (b.dataset.fault) api("POST", "/api/sim/inject", { fault: b.dataset.fault, seconds: 10 });
   if (b.dataset.ack) api("POST", `/api/alerts/${b.dataset.ack}/ack`);
+  if (b.dataset.replay) {
+    const was = soundOn;
+    soundOn = true;
+    speak(lastAlerts.find((a) => a.id === b.dataset.replay));
+    soundOn = was;
+  }
+  if (b.id === "sound") {
+    soundOn = !soundOn;
+    b.textContent = soundOn ? "On" : "Turn on";
+    b.setAttribute("aria-pressed", soundOn);
+  }
 });
 $("scale").addEventListener("change", (e) => api("PUT", "/api/config", { threshold_scale: Number(e.target.value) }));
 $("scale").addEventListener("input", (e) => ($("scaleOut").textContent = `${Number(e.target.value).toFixed(1)}×`));
 setInterval(() => ($("clock").textContent = new Date().toISOString().slice(11, 19)), 1000);
+
+// Voice assistant: tools run here in the browser and read the local API, so no tunnel is needed.
+const getJSON = async (path, opts) => JSON.stringify(await (await fetch(path, opts)).json());
+const TOOLS = {
+  get_status: () => getJSON("/api/status"),
+  get_history: ({ minutes } = {}) => getJSON(`/api/history?minutes=${Number(minutes) || 10}`),
+  get_alert: ({ id } = {}) =>
+    !id || id === "latest"
+      ? getJSON("/api/alerts").then((all) => JSON.stringify(JSON.parse(all)[0] || { error: "No alerts yet" }))
+      : getJSON(`/api/alerts/${encodeURIComponent(id)}`),
+  acknowledge_alert: ({ id } = {}) => getJSON(`/api/alerts/${encodeURIComponent(id)}/ack`, { method: "POST" }),
+};
+let session = null;
+let lines = [];
+
+function showLine(who, text) {
+  lines = [...lines, [who, text]].slice(-4);
+  $("transcript").innerHTML = lines.map(([w, t]) => `<dt>${w}</dt><dd>${esc(t)}</dd>`).join("");
+}
+
+function setTalking(on, status) {
+  $("talk").setAttribute("aria-pressed", on);
+  $("talk").textContent = on ? "Stop talking" : "Start talking";
+  $("voiceStatus").textContent = status;
+}
+
+async function toggleTalk() {
+  if (session) {
+    await session.endSession();
+    return;
+  }
+  const { agent_id } = await (await fetch("/api/voice/config")).json();
+  if (!agent_id) {
+    setTalking(false, "Voice assistant isn't set up: add ELEVENLABS_AGENT_ID to .env and restart.");
+    return;
+  }
+  setTalking(true, "Connecting…");
+  api("POST", "/api/guard", { playing: true, seconds: 600 }); // the conversation is loud; don't score it as a fault
+  try {
+    session = await ElevenLabsClient.Conversation.startSession({
+      agentId: agent_id,
+      clientTools: TOOLS,
+      onConnect: () => setTalking(true, "Listening. Ask a question."),
+      onModeChange: ({ mode }) => setTalking(true, mode === "speaking" ? "Answering…" : "Listening. Ask a question."),
+      onMessage: (m) => showLine((m.role || m.source) === "user" ? "You" : "Assistant", m.message),
+      onError: (e) => setTalking(true, `Voice error: ${e}`),
+      onDisconnect: () => {
+        session = null;
+        setTalking(false, "Session ended.");
+        api("POST", "/api/guard", { playing: false });
+      },
+    });
+  } catch (e) {
+    session = null;
+    setTalking(false, `Couldn't start the voice session: ${e.message || e}`);
+    api("POST", "/api/guard", { playing: false });
+  }
+}
+$("talk").addEventListener("click", toggleTalk);
 
 connect();

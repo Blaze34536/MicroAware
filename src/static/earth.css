@@ -1,0 +1,45 @@
+.ground {
+  display: grid; gap: 1.25rem; padding: 1.25rem 1.5rem; max-width: 1400px; margin: 0 auto;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  grid-template-areas: "controls controls" "copies received" "numbers weather" "history history";
+}
+.controls { grid-area: controls; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.controls .note { color: var(--muted); font-size: .9rem; margin: 0 0 0 .5rem; }
+.copies { grid-area: copies; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.received { grid-area: received; }
+.numbers { grid-area: numbers; }
+.weather { grid-area: weather; }
+.history { grid-area: history; }
+.received, .numbers, .weather, .history { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 1rem; }
+
+.copy { margin: 0; }
+.copy figcaption { font: 700 1.25rem/1.2 var(--cond); margin-bottom: .4rem; }
+.copy canvas { width: 100%; aspect-ratio: 96 / 72; image-rendering: pixelated; background: var(--well); border-radius: 3px; display: block; }
+.copy[data-ok="true"] canvas { box-shadow: 0 0 0 3px var(--nominal); }
+.copy[data-ok="false"] canvas { box-shadow: 0 0 0 3px var(--warning); }
+.verdict { font: 500 1.05rem/1.35 var(--cond); margin: .5rem 0 0; }
+.verdict strong { font-weight: 700; }
+
+.state[data-level="calm"] { background: var(--nominal); color: #fff; }
+.state[data-level="active"] { background: var(--caution); color: var(--ink); }
+.state[data-level="storm"] { background: var(--warning); color: #fff; }
+
+#metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem 1rem; margin: 0; }
+#metrics dt { color: var(--muted); font-size: .85rem; }
+#metrics dd { margin: 0; font: 700 1.6rem/1.1 var(--cond); font-variant-numeric: tabular-nums; }
+.weather p { margin: .25rem 0; }
+.weather .big { font: 700 1.6rem var(--cond); }
+.received .spoken { font-weight: 600; margin: .2rem 0 .4rem; }
+.received ol { margin: 0; padding-left: 1.2rem; }
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; font: 700 .9rem var(--cond); color: var(--muted); padding: .3rem .5rem .3rem 0; border-bottom: 1px solid var(--rule); }
+td { padding: .35rem .5rem .35rem 0; border-bottom: 1px solid var(--rule); }
+.ok { color: var(--nominal); font-weight: 600; }
+.bad { color: var(--warning); font-weight: 600; }
+
+@media (max-width: 800px) {
+  .ground { grid-template-columns: 1fr; grid-template-areas: "controls" "copies" "received" "numbers" "weather" "history"; padding: 1rem; }
+  .copies { grid-template-columns: 1fr; }
+  table { font-size: .85rem; }
+}
