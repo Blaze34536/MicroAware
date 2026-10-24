@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MicroAware</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="wordmark">MicroAware</span>
+      <span class="module">Habitat module A, life-support fan</span>
+    </div>
+    <div class="state" id="state" role="status" aria-live="polite">Connecting</div>
+    <dl class="meta">
+      <div><dt>Listening to</dt><dd id="source">–</dd></div>
+      <div><dt>UTC</dt><dd id="clock">--:--:--</dd></div>
+    </dl>
+  </header>
+
+  <main class="console">
+    <section class="ears" aria-label="Live spectrograms">
+      <figure class="well">
+        <figcaption>What the microphone hears</figcaption>
+        <div class="plot">
+          <ol class="hz" aria-hidden="true"><li>8 kHz</li><li>2 kHz</li><li>500 Hz</li><li>20 Hz</li></ol>
+          <canvas id="raw" width="600" height="160"></canvas>
+        </div>
+      </figure>
+      <figure class="well cancelled">
+        <figcaption>With the normal fan sound cancelled out</figcaption>
+        <div class="plot">
+          <ol class="hz" aria-hidden="true"><li>8 kHz</li><li>2 kHz</li><li>500 Hz</li><li>20 Hz</li></ol>
+          <canvas id="residual" width="600" height="160"></canvas>
+          <div class="empty" id="empty" hidden>
+            <p>MicroAware needs to learn what this fan sounds like when it's healthy.</p>
+            <button type="button" class="primary" data-action="record">Record 90 s of normal running</button>
+          </div>
+        </div>
+        <p class="hint">Dark means everything sounds as expected. Bright bands are sound the fan shouldn't be making.</p>
+      </figure>
+    </section>
+
+    <aside class="side">
+      <section class="score" aria-label="Anomaly score">
+        <h2>Anomaly score, last 2 minutes</h2>
+        <canvas id="scoreChart" width="360" height="120"></canvas>
+        <p class="readout"><span id="scoreNow">–</span> <span class="vs">alerts above <span id="thrNow">–</span></span></p>
+      </section>
+
+      <section class="changed" aria-label="What changed">
+        <h2>What changed</h2>
+        <ul id="bands"><li class="quiet">Nothing unusual right now.</li></ul>
+      </section>
+
+      <section class="feed" aria-label="Alerts">
+        <h2>Alerts</h2>
+        <ol id="alerts"><li class="quiet">No alerts yet.</li></ol>
+      </section>
+    </aside>
+  </main>
+
+  <details class="setup">
+    <summary>Setup</summary>
+    <div class="setup-grid">
+      <div>
+        <h3>Normal sound</h3>
+        <p>Run the fan normally, keep the room as it will be during the demo, then record.</p>
+        <label>Length <input id="recSeconds" type="number" min="5" max="300" value="90"> seconds</label>
+        <button type="button" data-action="record">Record normal sound</button>
+        <progress id="recProgress" max="1" value="0" hidden></progress>
+      </div>
+      <div>
+        <h3>Sensitivity</h3>
+        <label for="scale">Alert threshold <output id="scaleOut">1.0×</output></label>
+        <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1">
+        <p>Raise it if talking or footsteps cause alerts.</p>
+      </div>
+      <div>
+        <h3>Simulate a fault</h3>
+        <p>Mixes a fault into the live audio for 10 seconds.</p>
+        <button type="button" data-fault="whine">Bearing whine</button>
+        <button type="button" data-fault="rattle">Loose-mount rattle</button>
+      </div>
+    </div>
+  </details>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
