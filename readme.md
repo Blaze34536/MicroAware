@@ -2,14 +2,14 @@
 
 MicroAware listens to a habitat's life-support fan, catches faults by ear, explains them out loud, and gets the alert to Earth intact through a solar storm.
 
-- **Hear it:** an autoencoder learns what the healthy fan sounds like. Whatever it can't explain is the fault, shown live as the "cancelled" spectrogram.
+- **Hear it:** an autoencoder learns what the healthy fan sounds like. Whatever it can't explain is the fault, shown live as the "cancelled" spectrogram. A small offline speech detector (Silero VAD) pauses alerting while people talk near the mic.
 - **Name and explain it:** a small classifier names known faults. Gemini (or a canned fallback) explains each alert in one sentence plus 3 checks. ElevenLabs (or the browser's voice) speaks it, and a voice agent answers crew questions from live data.
 - **Send it home:** Storm Shield sends each alert from one ESP32 to another over ESP-NOW. It uses erasure coding and interleaving, and the protection adapts to live NOAA space weather or a manual "solar flare". A third ESP32 plays the Sun.
 
 ## Setup
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install numpy scipy scikit-learn sounddevice fastapi "uvicorn[standard]" pyserial zfec httpx python-dotenv pytest soundfile
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 sudo apt install libportaudio2        # or keep the no-sudo copy in .venv/portaudio that run.sh points to
 cp .env.example .env                  # optional keys; everything has a fallback
 cd src && ../.venv/bin/python -m microaware.forecast train   # downloads Kp history (~16 MB), trains in seconds
@@ -25,6 +25,8 @@ MICROAWARE_RECORD=data/run.wav ./run.sh      # record everything the mic hears (
 MICROAWARE_SOURCE=file:data/run.wav ./run.sh # replay a rehearsal through the same pipeline
 MICROAWARE_LINK=sim ./run.sh                 # force the simulated link
 ```
+
+On Windows, double-click `src\run.bat` (or run it from a terminal). The first run sets everything up: it creates `.venv`, installs `requirements.txt`, copies `.env.example` to `.env`, and trains the Kp forecaster. Later runs start straight away and only reinstall when `requirements.txt` changes. It needs Python 3.10 or newer from python.org or `winget install Python.Python.3.12`. Set options first, e.g. `set MICROAWARE_SOURCE=synth` then `run.bat`. The sounddevice wheel bundles PortAudio, and ESP32s are found on their COM ports automatically.
 
 - Habitat dashboard: http://localhost:8000
 - Earth ground station: http://localhost:8000/earth (open it on a second screen)
@@ -64,7 +66,8 @@ The Kp forecaster's honest results are in `src/microaware/forecast/RESULTS.md`.
 
 | Problem | Do this |
 |---|---|
-| Talking or footsteps cause alerts | Re-record the baseline with the room noise in it, or raise the threshold slider |
+| Footsteps or bumps cause alerts | Re-record the baseline with the room noise in it, or raise the threshold slider |
+| Alerts stay paused because people keep talking | Pause in your sentences for a second, or untick **Pause alerts while people talk** in Setup |
 | Fan fault too subtle | Use **Simulate a fault** in Setup, or replay a rehearsal with `MICROAWARE_SOURCE=file:` |
 | No Wi-Fi | Explanations fall back to canned text, and spoken alerts use the browser's voice |
 | Radio misbehaving | Unplug the boards; the link falls back to simulated and the Earth page says so |

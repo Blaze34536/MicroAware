@@ -1,0 +1,15 @@
+numpy
+scipy
+scikit-learn
+threadpoolctl
+sounddevice
+soundfile
+fastapi
+uvicorn[standard]
+pydantic
+pyserial
+zfec
+httpx
+python-dotenv
+onnxruntime
+pytest
