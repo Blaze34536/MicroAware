@@ -40,7 +40,7 @@ body {
   padding: .75rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--rule);
 }
 .wordmark { font: 700 1.6rem/1 var(--cond); letter-spacing: -.01em; }
-.module { display: block; color: var(--muted); font-size: .9rem; }
+.module { display: block; color: var(--ink); font-size: .9rem; }
 .state {
   font: 700 1.5rem/1 var(--cond); padding: .45rem 1.1rem; border-radius: 4px;
   background: var(--rule); color: var(--ink); min-width: 12rem; text-align: center;
@@ -49,7 +49,7 @@ body {
 .state[data-level="abnormal"] { background: var(--caution); color: var(--ink); }
 .state[data-level="offline"] { background: var(--warning); color: #fff; }
 .meta { display: flex; justify-content: flex-end; gap: 1.5rem; margin: 0; }
-.meta dt { color: var(--muted); font-size: .8rem; }
+.meta dt { color: var(--ink); font-size: .8rem; }
 .meta a { color: inherit; text-decoration-color: var(--rule); text-underline-offset: 3px; }
 .meta dd { margin: 0; white-space: nowrap; font: 500 1.15rem/1.2 var(--cond); font-variant-numeric: tabular-nums; }
 .meta dd[data-paused="true"] { color: var(--muted); }
@@ -96,10 +96,10 @@ body[data-level="abnormal"] .cancelled .plot canvas { box-shadow: 0 0 0 3px var(
 .alert h3 { margin: 0; color: #250441;}
 .alert p { margin: .2rem 0; font-size: .9rem; }
 .alert .when { color: #250441; font-size: .8rem; }
-.alert .spoken { font-size: 1rem; font-weight: 600; margin: .35rem 0; }
-.alert .checks { margin: .2rem 0 .4rem; padding-left: 1.2rem; font-size: .9rem; }
+.alert .spoken { font-size: 1rem; font-weight: 600; margin: .35rem 0; color: #250441; }
+.alert .checks { margin: .2rem 0 .4rem; padding-left: 1.2rem; font-size: .9rem; color: #250441; }
 .alert .evidence { color: #250441; }
-.alert .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .3rem; }
+.alert .actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .3rem;color: #250441; }
 #sound[aria-pressed="true"] { background: var(--nominal); border-color: var(--nominal); color: #250441; }
 
 button { background: var(--surface); border: 1px solid var(--muted); border-radius: 3px; padding: .35rem .8rem; cursor: pointer; }
