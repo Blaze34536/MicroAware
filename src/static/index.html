@@ -17,6 +17,7 @@
       <div><dt>Spoken alerts</dt><dd><button type="button" id="sound" aria-pressed="false">Turn on</button></dd></div>
       <div><dt>Earth link</dt><dd><a href="/earth" target="_blank" id="link">–</a></dd></div>
       <div><dt>Listening to</dt><dd id="source">–</dd></div>
+      <div><dt>Alerts</dt><dd id="pause">–</dd></div>
       <div><dt>UTC</dt><dd id="clock">--:--:--</dd></div>
     </dl>
   </header>
@@ -97,7 +98,8 @@
         <h3>Sensitivity</h3>
         <label for="scale">Alert threshold <output id="scaleOut">1.0×</output></label>
         <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1">
-        <p>Raise it if talking or footsteps cause alerts.</p>
+        <p>Raise it if footsteps or bumps cause alerts.</p>
+        <label class="check"><input id="ignoreTalking" type="checkbox" checked> Pause alerts while people talk</label>
       </div>
       <div>
         <h3>Simulate a fault</h3>

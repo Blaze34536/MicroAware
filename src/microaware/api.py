@@ -30,7 +30,8 @@ class LabelReq(BaseModel):
 
 
 class ConfigReq(BaseModel):
-    threshold_scale: float = Field(ge=0.2, le=5)
+    threshold_scale: float | None = Field(None, ge=0.2, le=5)
+    ignore_talking: bool | None = None
 
 
 class GuardReq(BaseModel):
@@ -159,8 +160,11 @@ def create_app(engine, downlink=None):
 
     @app.put("/api/config")
     def config(req: ConfigReq):
-        engine.threshold_scale = req.threshold_scale
-        return {"threshold_scale": engine.threshold_scale, "threshold": engine.threshold}
+        if req.threshold_scale is not None:
+            engine.threshold_scale = req.threshold_scale
+        if req.ignore_talking is not None:
+            engine.ignore_talking = req.ignore_talking
+        return {"threshold_scale": engine.threshold_scale, "threshold": engine.threshold, "ignore_talking": engine.ignore_talking}
 
     @app.post("/api/guard")
     def guard(req: GuardReq):

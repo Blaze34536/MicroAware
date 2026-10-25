@@ -115,3 +115,13 @@ def test_voice_config_exposes_only_the_agent_id(tmp_path, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "secret")
     body = TestClient(create_app(Engine(data_dir=tmp_path))).get("/api/voice/config").json()
     assert body == {"agent_id": "agent_123"}
+
+
+def test_talking_pause_can_be_switched_off_without_touching_the_threshold(tmp_path):
+    eng = Engine(data_dir=tmp_path)
+    eng.fit_baseline(synth.fan(60, seed=1))
+    client = TestClient(create_app(eng))
+    client.put("/api/config", json={"threshold_scale": 1.5})
+    r = client.put("/api/config", json={"ignore_talking": False}).json()
+    assert r["ignore_talking"] is False and r["threshold_scale"] == 1.5
+    assert eng.ignore_talking is False and eng.threshold_scale == 1.5

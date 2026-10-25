@@ -181,6 +181,9 @@ function render(t) {
   $("state").dataset.level = level;
   document.body.dataset.level = level;
   $("source").textContent = SOURCES[t.source] || t.source;
+  $("pause").textContent = t.guarded ? "Paused, speaking" : t.talking && t.ignore_talking ? "Paused, talking" : "Live";
+  $("pause").dataset.paused = t.guarded || (t.talking && t.ignore_talking);
+  if (document.activeElement !== $("ignoreTalking")) $("ignoreTalking").checked = t.ignore_talking;
   if (t.link) {
     const sent = t.link.last_minute;
     const mode = t.link.mode[0].toUpperCase() + t.link.mode.slice(1);
@@ -266,6 +269,7 @@ document.addEventListener("click", (e) => {
   }
 });
 $("scale").addEventListener("change", (e) => api("PUT", "/api/config", { threshold_scale: Number(e.target.value) }));
+$("ignoreTalking").addEventListener("change", (e) => api("PUT", "/api/config", { ignore_talking: e.target.checked }));
 $("scale").addEventListener("input", (e) => ($("scaleOut").textContent = `${Number(e.target.value).toFixed(1)}×`));
 setInterval(() => ($("clock").textContent = new Date().toISOString().slice(11, 19)), 1000);
 

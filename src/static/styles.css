@@ -42,7 +42,9 @@ button, input { font: inherit; color: inherit; }
 .meta { display: flex; justify-content: flex-end; gap: 1.5rem; margin: 0; }
 .meta dt { color: var(--muted); font-size: .8rem; }
 .meta a { color: inherit; text-decoration-color: var(--rule); text-underline-offset: 3px; }
-.meta dd { margin: 0; font: 500 1.15rem/1.2 var(--cond); font-variant-numeric: tabular-nums; }
+.meta dd { margin: 0; white-space: nowrap; font: 500 1.15rem/1.2 var(--cond); font-variant-numeric: tabular-nums; }
+.meta dd[data-paused="true"] { color: var(--muted); }
+.setup label.check { display: flex; gap: .5rem; align-items: center; margin-top: .75rem; }
 
 /* Main console */
 .console {
@@ -107,7 +109,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 800px) {
   .bar { grid-template-columns: 1fr; justify-items: start; }
-  .meta { justify-content: flex-start; }
+  .meta { justify-content: flex-start; flex-wrap: wrap; gap: .5rem 1.5rem; }
   .console { grid-template-columns: 1fr; padding: 1rem; }
   .setup { padding: 0 1rem; }
 }

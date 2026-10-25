@@ -1,5 +1,4 @@
 """Serial framing for the ESP32 link: 0xA5, len, payload, crc8(len + payload)."""
-import glob
 import time
 
 SYNC = 0xA5
@@ -69,9 +68,10 @@ def _read_role(ser, deadline):
 def find_ports(timeout: float = 3.0) -> dict:
     """Open each USB serial port and map the board's ROLE line to its port."""
     import serial
+    from serial.tools import list_ports
 
     roles = {}
-    for port in sorted(glob.glob("/dev/ttyUSB*") + glob.glob("/dev/ttyACM*")):
+    for port in sorted(p.device for p in list_ports.comports() if p.vid is not None):  # USB only: /dev/ttyUSB0, COM3, ...
         try:
             with serial.Serial(port, BAUD, timeout=0.05) as ser:
                 start = time.monotonic()
