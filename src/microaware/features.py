@@ -53,3 +53,10 @@ def windows(x, length=1.0, step=0.5):
     n, s = int(length * SR), int(step * SR)
     for start in range(0, len(x) - n + 1, s):
         yield x[start : start + n]
+
+
+
+def voice_share_db(x, voice):
+    """How much of each chunk-band's power is the voice, in dB (0 = all of it). Power-averaged so bursts count."""
+    power = lambda a: np.concatenate([c.mean(axis=1) for c in np.array_split(10 ** (logmel(a) / 10), STACK, axis=1)])
+    return 10 * np.log10(power(voice) / power(x) + 1e-12)

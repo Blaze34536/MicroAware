@@ -134,11 +134,21 @@ function renderAlerts(alerts) {
         <p class="when">${a.id} at ${time} UTC</p>
         ${a.explanation ? `<p class="spoken">${esc(a.explanation.spoken)}</p>
         <ol class="checks">${a.explanation.checks.map((c) => `<li>${esc(c)}</li>`).join("")}</ol>` : '<p class="when">Explaining…</p>'}
-        <p class="evidence">Score ${fmt(a.evidence.score)}, threshold ${fmt(a.evidence.threshold)}.${where}</p>
-        <div class="actions">${ack}${a.explanation ? `<button type="button" data-replay="${a.id}">Play again</button>` : ""}</div>
+        <p class="evidence">Score ${fmt(a.evidence.score)}, threshold ${fmt(a.evidence.threshold)}.${where}${a.evidence.voice_removed ? " Heard through talking: ElevenLabs removed the voice first." : ""}</p>
+        <div class="actions">${ack}${a.explanation ? `<button type="button" data-replay="${a.id}">Play again</button>` : ""}<button type="button" data-fix="${a.id}">How do I fix this?</button></div>
+        <div class="fix" id="fix-${a.id}" aria-live="polite">${fixes[a.id] || ""}</div>
       </li>`;
     })
     .join("");
+}
+
+const fixes = {}; // alert id -> rendered repair steps, kept across alert-list redraws
+
+function renderFix(f) {
+  return `<p class="fix-summary">${esc(f.summary)}</p>
+    <p class="when">Tools: ${f.tools.map(esc).join(", ")}</p>
+    <ol class="steps">${f.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+    <p class="when">Safety: ${esc(f.safety)}<br>Escalate: ${esc(f.escalate)}<br>${f.source === "llm" ? "Written by Gemini from the maintenance notes." : "From the built-in repair guide."}</p>`;
 }
 
 function esc(s) {
@@ -181,8 +191,11 @@ function render(t) {
   $("state").dataset.level = level;
   document.body.dataset.level = level;
   $("source").textContent = SOURCES[t.source] || t.source;
-  $("pause").textContent = t.guarded ? "Paused, speaking" : t.talking && t.ignore_talking ? "Paused, talking" : "Live";
-  $("pause").dataset.paused = t.guarded || (t.talking && t.ignore_talking);
+  $("pause").textContent = t.guarded ? "Paused, speaking" : t.checking ? "Checking for talking" : t.talking && t.ignore_talking && !t.isolator?.on ? "Paused, talking" : "Live";
+  $("pause").dataset.paused = t.guarded || t.checking || (t.talking && t.ignore_talking && !t.isolator?.on);
+  $("isolatorStatus").textContent = !t.isolator
+    ? "Add an ElevenLabs key to .env to check sudden changes during talking instead of pausing alerts."
+    : `Sudden changes are checked with the ElevenLabs Voice Isolator before alerting, adding about 6 s. Credits used this run: ${t.isolator.spent.toLocaleString()} of ${t.isolator.budget.toLocaleString()}.`;
   if (document.activeElement !== $("ignoreTalking")) $("ignoreTalking").checked = t.ignore_talking;
   if (t.link) {
     const sent = t.link.last_minute;
@@ -256,6 +269,19 @@ document.addEventListener("click", (e) => {
   if (b.dataset.action === "train") api("POST", "/api/labeler/train");
   if (b.dataset.fault) api("POST", "/api/sim/inject", { fault: b.dataset.fault, seconds: 10 });
   if (b.dataset.ack) api("POST", `/api/alerts/${b.dataset.ack}/ack`);
+  if (b.dataset.fix) {
+    const id = b.dataset.fix;
+    fixes[id] = '<p class="when">Asking Gemini for repair steps…</p>';
+    $(`fix-${id}`).innerHTML = fixes[id];
+    fetch(`/api/alerts/${id}/fix`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((f) => (fixes[id] = renderFix(f)))
+      .catch(() => (fixes[id] = '<p class="when">Couldn\'t get repair steps. Try again.</p>'))
+      .finally(() => {
+        const el = $(`fix-${id}`);
+        if (el) el.innerHTML = fixes[id];
+      });
+  }
   if (b.dataset.replay) {
     const was = soundOn;
     soundOn = true;
@@ -282,6 +308,10 @@ const TOOLS = {
     !id || id === "latest"
       ? getJSON("/api/alerts").then((all) => JSON.stringify(JSON.parse(all)[0] || { error: "No alerts yet" }))
       : getJSON(`/api/alerts/${encodeURIComponent(id)}`),
+  get_fix: async ({ id } = {}) => {
+    if (!id || id === "latest") id = (JSON.parse(await getJSON("/api/alerts"))[0] || {}).id;
+    return id ? getJSON(`/api/alerts/${encodeURIComponent(id)}/fix`) : JSON.stringify({ error: "No alerts yet" });
+  },
   acknowledge_alert: ({ id } = {}) => getJSON(`/api/alerts/${encodeURIComponent(id)}/ack`, { method: "POST" }),
 };
 let session = null;

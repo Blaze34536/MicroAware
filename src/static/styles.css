@@ -90,7 +90,7 @@ body[data-level="abnormal"] .cancelled .plot canvas { box-shadow: 0 0 0 3px var(
 .changed .db { font: 700 1rem var(--cond); color: var(--warning); }
 .quiet { color: var(--muted); }
 
-#alerts { display: grid; gap: .6rem; max-height: 40vh; overflow-y: auto; }
+#alerts { display: grid; gap: .6rem; max-height: 75vh; overflow-y: auto; }
 .alert { border-left: 4px solid var(--caution); padding: .5rem .75rem; background: var(--panel); }
 .alert[data-state="acknowledged"], .alert[data-state="cleared"] { border-left-color: var(--rule); color: var(--muted); }
 .alert h3 { margin: 0; color: #250441;}

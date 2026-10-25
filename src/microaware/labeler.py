@@ -47,3 +47,12 @@ class Labeler:
         i = int(np.argmax(probs))
         label, conf = self.model.classes_[i], float(probs[i])
         return (None if label == NORMAL or conf < self.min_conf else label), round(conf, 2)
+
+
+def simulated_clips(normal_audio, seconds=10):
+    """{fault: [clips]}: each simulated fault mixed into three stretches of the normal sound."""
+    from .synth import FAULTS
+
+    n = int(seconds * features.SR)
+    starts = np.linspace(0, max(0, len(normal_audio) - n), 3).astype(int)
+    return {name: [fault(normal_audio[s : s + n], t0=s / features.SR) for s in starts] for name, fault in FAULTS.items()}

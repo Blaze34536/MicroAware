@@ -5,6 +5,9 @@ rem   set MICROAWARE_LINK=sim       (simulated radio link)
 rem   set PORT=8001
 setlocal
 cd /d "%~dp0"
+for %%I in ("%~dp0..") do set "ROOT=%%~fI"
+set "VENV=%ROOT%\.venv"
+set "PY=%VENV%\Scripts\python.exe"
 if not defined PORT set PORT=8000
 set "ROOT=%~dp0.."
 set "VENV=%ROOT%\.venv"

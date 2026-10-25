@@ -14,9 +14,9 @@ class AlertManager:
         self.alerts = []
         self._over = self._under = 0
 
-    def update(self, score, threshold, top_bands):
-        """Feed one window's score; returns a new alert dict when one is raised."""
-        if self.paused:
+    def update(self, score, threshold, top_bands, force=False):
+        """Feed one window's score; returns a new alert dict when one is raised. force: a delayed window, judged already."""
+        if self.paused and not force:
             return None
         self._over = self._over + 1 if score > threshold else 0
         self._under = self._under + 1 if score < CLEAR_RATIO * threshold else 0
@@ -39,7 +39,7 @@ class AlertManager:
             "severity": "warning",
             "label": None,
             "label_conf": None,
-            "evidence": {"score": round(score, 2), "threshold": round(threshold, 2), "top_bands": top_bands},
+            "evidence": {"score": round(score, 2), "threshold": round(threshold, 2), "top_bands": top_bands, "voice_removed": False},
             "explanation": None,
             "state": "active",
         }
