@@ -24,7 +24,8 @@ def test_message_round_trip():
 
 
 def test_every_packet_fits_esp_now():
-    assert all(len(f) <= 250 for f in encode(build_message(ALERT, IMAGE), 1, "storm", "critical"))
+    # Earth's serial frame spends 5 of its 250 bytes on rssi + millis, so a radio packet must fit in 245
+    assert all(len(f) <= 245 for f in encode(build_message(ALERT, IMAGE), 1, "storm", "critical"))
 
 
 @pytest.mark.parametrize("mode", ["raw", "calm", "active", "storm"])

@@ -11,7 +11,7 @@ import serial
 from . import serial_frame
 from .serial_link import CALIBRATION
 
-COUNT, GAP_MS, SIZE = 500, 4, 247
+COUNT, GAP_MS, SIZE = 500, 4, 245
 
 
 def loss_from(payloads, sent):

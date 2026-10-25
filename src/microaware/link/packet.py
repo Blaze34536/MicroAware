@@ -9,7 +9,7 @@ import zfec
 MAGIC, VERSION = 0x5A, 1
 HEAD = struct.Struct("<BBHBBBBBBBH")  # magic ver msg_id block blocks idx k n mode priority msg_len
 CRC = struct.Struct("<H")
-PAYLOAD = 232  # 13 B header + 2 B crc16 + 232 = 247 B, under the 250 B ESP-NOW limit
+PAYLOAD = 230  # 13 B header + 2 B crc16 + 230 = 245 B: what Earth can forward after its 5 B rssi + millis header
 MAX_SHARES = 32  # storm critical sends 2 x 12 shares
 
 # mode -> (code, k, n, frame gap seconds)
