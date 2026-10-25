@@ -23,6 +23,28 @@
   </header>
 
   <main class="console">
+  <!-- Shuttle Map + Assistant Top Row -->
+    <section class="shuttle-map" aria-label="Space shuttle cross-section layout">
+      <!-- Outer wrapper applies the left offset matching the axis labels -->
+      <div class="shuttle-aligned-wrapper">
+        <div class="shuttle-container">
+          <img src="/static/images/spaceshuttle2.png" alt="Space Shuttle Diagram" id="shuttleDiagram">
+          <!-- Fault Hotspot Pin -->
+          <div class="shuttle-hotspot" style="top: 40%; left: 65%;" title="Habitat Module A - Fan 3"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side top-assistant">
+      <section class="voice" aria-label="Voice assistant">
+        <h2>Ask the flight-engineer assistant</h2>
+        <button type="button" id="talk" class="talk" aria-pressed="false">Start talking</button>
+        <p id="voiceStatus" class="quiet">Try “Is it getting worse?” or “What should I check?”</p>
+        <dl id="transcript" class="transcript"></dl>
+      </section>
+    </aside>
+
+    <!-- Live Spectrograms Row -->
     <section class="ears" aria-label="Live spectrograms">
       <figure class="well">
         <figcaption>What the microphone hears</figcaption>
@@ -45,13 +67,8 @@
       </figure>
     </section>
 
-    <aside class="side">
-      <section class="voice" aria-label="Voice assistant">
-        <h2>Ask the flight-engineer assistant</h2>
-        <button type="button" id="talk" class="talk" aria-pressed="false">Start talking</button>
-        <p id="voiceStatus" class="quiet">Try “Is it getting worse?” or “What should I check?”</p>
-        <dl id="transcript" class="transcript"></dl>
-      </section>
+    <!-- Bottom Sidebar -->
+    <aside class="side bottom-side">
       <section class="score" aria-label="Anomaly score">
         <h2>Anomaly score, last 2 minutes</h2>
         <canvas id="scoreChart" width="360" height="120"></canvas>
