@@ -7,7 +7,7 @@
   --panel: #E6EAEC;      /* painted module wall */
   --surface: #F5F7F8;
   --ink: #1E2A32;
-  --muted: #5B6B76;
+  --muted: #FFFFFF;
   --rule: #C9D1D6;
   --nominal: #3D6E8F;
   --caution: #E8A317;
@@ -24,6 +24,15 @@ body { margin: 0; min-height: 100vh; background: var(--panel); }
 h2, h3 { font: 700 1rem/1.2 var(--cond); margin: 0 0 .5rem; letter-spacing: .01em; }
 button, input { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--nominal); outline-offset: 2px; }
+
+body {
+    background-image: url('images/spacebg.jpg'); 
+    background-repeat: no-repeat; 
+    background-size: cover; 
+    background-position: center; 
+    background-attachment: fixed; 
+    background-color: #f0f0f0; 
+}
 
 /* Status bar */
 .bar {
@@ -56,7 +65,7 @@ button, input { font: inherit; color: inherit; }
 
 .ears { display: grid; gap: 1rem; align-content: start; }
 .well { margin: 0; }
-.well figcaption { font: 700 1.05rem/1.2 var(--cond); margin-bottom: .4rem; }
+.well figcaption { font: 700 1.05rem/1.2 var(--cond); margin-bottom: .4rem; color: #fff;}
 .plot { position: relative; display: grid; grid-template-columns: 3.5rem 1fr; }
 .plot canvas { width: 100%; height: clamp(140px, 22vh, 240px); background: var(--well); border-radius: 3px; display: block; }
 .hz { list-style: none; margin: 0; padding: 0 .4rem 0 0; display: flex; flex-direction: column; justify-content: space-between; text-align: right; font: 500 .75rem/1 var(--cond); color: var(--muted); }
@@ -100,7 +109,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Space Shuttle Map Box */
 .shuttle-map {
-  background: rgba(15, 20, 30, 0.6);
+  background: rgba(255, 255, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   padding: 12px;
@@ -178,7 +187,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 }
 
 .side.top-assistant {
-  background: rgba(15, 20, 30, 0.6);
+  background: rgba(255, 255, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   padding: 16px;
