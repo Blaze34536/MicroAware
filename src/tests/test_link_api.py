@@ -19,7 +19,7 @@ def setup(tmp_path):
 
 
 def raise_alert(eng, client):
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 10})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 10})
     run(eng, 4, seed=500)
     deadline = time.time() + 5
     while time.time() < deadline and not eng.downlink_sent:

@@ -2,8 +2,8 @@
 
 MicroAware listens to a habitat's life-support fan, catches faults by ear, explains them out loud, and gets the alert to Earth intact through a solar storm.
 
-- **Hear it:** an autoencoder learns what the healthy fan sounds like. Whatever it can't explain is the fault, shown live as the "cancelled" spectrogram. A small offline speech detector (Silero VAD) pauses alerting while people talk near the mic.
-- **Name and explain it:** a small classifier names known faults. Gemini (or a canned fallback) explains each alert in one sentence plus 3 checks. ElevenLabs (or the browser's voice) speaks it, and a voice agent answers crew questions from live data.
+- **Hear it:** an autoencoder learns what the healthy fan sounds like. Whatever it can't explain is the fault, shown live as the "cancelled" spectrogram. When the sound jumps, MicroAware first sends about 5 s to the ElevenLabs Voice Isolator, leaves out whatever the voice accounts for, and only alerts if the rest is still abnormal. That adds about 6 s to every alert and spends credits only on sudden changes, never on a normal-sounding fan (capped at 20,000 per run). Without a key, or if the API fails, a small offline speech detector (Silero VAD) pauses alerting while people talk instead.
+- **Name and explain it:** a small classifier names known faults: imbalance, worn bearing, loose mount and air leak. Recording the normal sound also trains it on simulated versions of each fault mixed into that sound, so it can name them without recorded examples; recorded clips of real faults make it more accurate. Each alert has **How do I fix this?**, step-by-step repair from Gemini using the maintenance notes, with a built-in repair guide as fallback. Gemini (or a canned fallback) explains each alert in one sentence plus 3 checks. ElevenLabs (or the browser's voice) speaks it, and a voice agent answers crew questions from live data.
 - **Send it home:** Storm Shield sends each alert from one ESP32 to another over ESP-NOW. It uses erasure coding and interleaving, and the protection adapts to live NOAA space weather or a manual "solar flare". A third ESP32 plays the Sun.
 
 ## Setup
@@ -30,6 +30,7 @@ On Windows, double-click `src\run.bat` (or run it from a terminal). The first ru
 
 - Habitat dashboard: http://localhost:8000
 - Earth ground station: http://localhost:8000/earth (open it on a second screen)
+- Sound library: http://localhost:8000/sounds — a fixed and a broken sound for the habitat fan (each simulated fault) and for a real fan, pump, slider and valve (MIMII dataset). Fan sounds can be checked by MicroAware or mixed into the live fan.
 
 Tests: `cd src && ../.venv/bin/pytest -q`
 
@@ -60,6 +61,8 @@ Tests: `cd src && ../.venv/bin/pytest -q`
 | 50% | storm | 170/200 | 0/200 |
 | 60% | storm | 52/200 | 0/200 |
 
+Talking near a real fan recording (CC BY, `src/tests/fixtures`), checked with the real Voice Isolator: speech as loud as the fan, half and a third as loud raised 0 alerts; a whine, rattle or hiss starting during the talking was caught in all 9 runs. The isolator never mistakes a hiss for a voice, and the check doesn't cost sensitivity: the quietest whine caught is the same with and without it. Every jump is checked, not only when the offline speech detector hears talking, because it misses speech a third as loud as this fan; gating on it raised a false alarm there. The cost is delay: a fault takes about 6–7 s to alert, against about 1.5 s without the check.
+
 The Kp forecaster's honest results are in `src/microaware/forecast/RESULTS.md`.
 
 ## If something breaks at the venue
@@ -67,7 +70,7 @@ The Kp forecaster's honest results are in `src/microaware/forecast/RESULTS.md`.
 | Problem | Do this |
 |---|---|
 | Footsteps or bumps cause alerts | Re-record the baseline with the room noise in it, or raise the threshold slider |
-| Alerts stay paused because people keep talking | Pause in your sentences for a second, or untick **Pause alerts while people talk** in Setup |
+| Talking causes alerts, or alerts never come while people talk | Check the **Alerts** item in the status bar and the credit line in Setup. Without the isolator, pause in your sentences for a second. Untick **Ignore people talking** to alert on everything |
 | Fan fault too subtle | Use **Simulate a fault** in Setup, or replay a rehearsal with `MICROAWARE_SOURCE=file:` |
 | No Wi-Fi | Explanations fall back to canned text, and spoken alerts use the browser's voice |
 | Radio misbehaving | Unplug the boards; the link falls back to simulated and the Earth page says so |

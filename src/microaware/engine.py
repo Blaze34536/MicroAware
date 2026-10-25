@@ -1,5 +1,6 @@
 """Shared state: buffers audio, scores the latest window, tracks alerts and baseline recording."""
 import pickle
+import queue
 import threading
 import time
 from collections import deque
@@ -8,21 +9,35 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from . import explainer, features, synth, voice
+from . import explainer, features, isolate, synth, voice
 from .alerts import AlertManager
 from .detector import Detector
-from .labeler import Labeler
+from .labeler import Labeler, simulated_clips
 from .link.downlink import render_image
 from .speech import SpeechTracker
 
 MACHINE = "fan_a"
 TALK_HANGOVER = 1.0  # keep alerts paused this long after talking, to cover gaps between words
-FAULTS = {"whine": synth.whine, "rattle": synth.rattle}
+TAPE_SECONDS = 30  # audio kept: the last 1 s is scored, 4 s is the evidence image, up to ~6 s is sent to the isolator
+ISOLATE_BUDGET = 20_000  # ElevenLabs credits per run (~30 min of talking), so spoken alerts keep theirs
+# The isolator always returns some "voice" (10-30% of a plain fan, up to 60% of a whine), so a window only counts
+# as talking when leaving the voice out at least halves its score: true for 21 of 23 talking windows, 0 of 45 whines.
+VOICED_THRESHOLD = 2.0  # talking windows are scored from what's left, which is noisier
+FAULTS = synth.FAULTS
 
 
 class Engine:
-    def __init__(self, data_dir="data", source="none", llm="default"):
+    def __init__(self, data_dir="data", source="none", llm="default", isolator=None):
         self.llm = llm
+        # isolator(audio) -> (voice, credits): over-threshold windows are held and checked for talking first
+        self.isolator = isolator
+        self.isolate_budget, self.isolate_spent = ISOLATE_BUDGET, 0
+        self.isolate_off_until = 0  # in samples pushed: after a failure, alert without it for a minute
+        self._held = []  # (window end sample, talking) for the current run of over-threshold windows
+        self._jobs = queue.Queue()
+        self.alert_lock = threading.Lock()  # alerts are updated live and by the isolator worker
+        if isolator:
+            threading.Thread(target=self._worker, daemon=True).start()
         self.history = deque(maxlen=1200)  # (time, score): 10 min at 2 Hz
         self.abnormal_since = None
         self.on_alert_ready = []  # callbacks(alert, image) once an alert is explained, e.g. the downlink
@@ -36,7 +51,7 @@ class Engine:
         self.data_dir = Path(data_dir)
         self.source = source
         self.lock = threading.Lock()
-        self.buffer = np.zeros(4 * features.SR, dtype=np.float32)  # latest 4 s: last 1 s is scored, all 4 s is the evidence image
+        self.buffer = np.zeros(TAPE_SECONDS * features.SR, dtype=np.float32)
         self.pushed = 0  # samples received; scoring waits for a full real second
         self.recording = None  # list of chunks while recording a baseline
         self.record_seconds = 0
@@ -80,11 +95,10 @@ class Engine:
     def push(self, chunk):
         if self.inject and time.time() < self.inject[1]:
             # mixed in at the input so recordings and scoring both hear the simulated fault
-            name, pos = self.inject[0], self.inject_pos
-            chunk = FAULTS[name](chunk, **({"t0": pos / features.SR} if name == "whine" else {"seed": pos}))
+            chunk = FAULTS[self.inject[0]](chunk, t0=self.inject_pos / features.SR)
             self.inject_pos += len(chunk)
         with self.lock:
-            self.buffer = np.concatenate([self.buffer, chunk])[-4 * features.SR :]
+            self.buffer = np.concatenate([self.buffer, chunk])[-TAPE_SECONDS * features.SR :]
             self.pushed += len(chunk)
             if self.recording is not None:
                 self.recording.append(chunk)
@@ -106,16 +120,15 @@ class Engine:
         sf.write(self._labels_dir() / f"{label}_{n}.wav", audio, features.SR)
 
     def train_labeler(self):
-        """Fit the fault labeler on the saved baseline audio plus every recorded clip."""
+        """Fit the fault labeler on the baseline audio, simulated faults mixed into it, and every recorded clip."""
         normal = self.data_dir / f"baseline_{MACHINE}.wav"
         if not normal.exists():
             raise ValueError("Record the normal sound first.")
-        clips = {}
+        normal = sf.read(normal, dtype="float32")[0]
+        clips = simulated_clips(normal)
         for f in sorted(self._labels_dir().glob("*.wav")):
             clips.setdefault(f.stem.rsplit("_", 1)[0], []).append(sf.read(f, dtype="float32")[0])
-        if not clips:
-            raise ValueError("Record at least one fault clip first.")
-        lab = Labeler.fit(sf.read(normal, dtype="float32")[0], clips)
+        lab = Labeler.fit(normal, clips)
         self._labeler_path().write_bytes(pickle.dumps(lab))
         self.labeler = lab
         return lab.labels
@@ -126,6 +139,7 @@ class Engine:
         self._baseline_path().write_bytes(pickle.dumps(det))
         sf.write(self.data_dir / f"baseline_{MACHINE}.wav", audio, features.SR)  # reused to train the labeler
         self.detector, self.alerts = det, AlertManager(MACHINE)
+        self.train_labeler()  # simulated faults on this fan, so alerts get names without recording clips
 
     def _train(self, audio):
         try:
@@ -144,7 +158,7 @@ class Engine:
             window = self.buffer[-features.SR :].copy()
             new = self.buffer[-min(self.pushed - self._heard, len(self.buffer)) :].copy() if self.pushed > self._heard else None
             self._heard = self.pushed
-            recent = self.buffer.copy()
+            recent = self.buffer[-4 * features.SR :].copy()
             if self.recording is not None and self.record_progress() >= 1:
                 audio, self.recording = np.concatenate(self.recording), None
                 if self.record_label:
@@ -161,23 +175,95 @@ class Engine:
         if det is None or self.training or self.pushed < features.SR:
             self.last.update(score=None, residual=None, top_bands=[])
             return None
-        self.alerts.paused = time.time() < self.guard_until or (self.ignore_talking and self.talking())
+        guarded, talk = time.time() < self.guard_until, self.ignore_talking and self.talking()
         score = det.score(window)
         top = [{"band_hz": f"{lo:.0f}-{hi:.0f}", "delta_db": d} for (lo, hi), d in
                ((b["band_hz"], b["delta_db"]) for b in det.top_bands(window))]
         self.last.update(score=score, residual=det.residual(window), top_bands=top)
         self.history.append((time.time(), score))
-        alert = self.alerts.update(score, self.threshold, top)
+        alert = None
+        # every jump is checked, not just when Silero hears talking: it misses speech a third as loud as a real fan
+        if not guarded and self.alerts.state == "nominal" and score > self.threshold and self._can_isolate():
+            self._held.append((self.pushed, talk))  # suspicious: let the isolator say how much talking explains
+            if self._held[-1][0] - self._held[0][0] + features.SR >= isolate.MIN_SECONDS * features.SR:
+                self._flush()
+        else:
+            if self._held:
+                self._flush()
+            with self.alert_lock:
+                self.alerts.paused = guarded or talk
+                alert = self.alerts.update(score, self.threshold, top)
         if self.alerts.state == "nominal":
             self.abnormal_since = None
         elif self.abnormal_since is None:
             self.abnormal_since = time.time()
         if alert:
-            if self.labeler:
-                alert["label"], alert["label_conf"] = self.labeler.predict(window)
-            self._images[alert["id"]] = render_image(recent)
-            threading.Thread(target=self._explain, args=(alert,), daemon=True).start()
+            self._raised(alert, window, recent)
         return alert
+
+    def _raised(self, alert, window, recent):
+        if self.labeler:
+            alert["label"], alert["label_conf"] = self.labeler.predict(window)
+        self._images[alert["id"]] = render_image(recent)
+        threading.Thread(target=self._explain, args=(alert,), daemon=True).start()
+
+    def _can_isolate(self):
+        return (self.isolator is not None and self.ignore_talking and self.isolate_spent < self.isolate_budget
+                and self.pushed >= self.isolate_off_until)
+
+    def _flush(self):
+        """Send the held windows, padded with earlier audio to the isolator's minimum length, to the worker."""
+        held, self._held = self._held, []
+        with self.lock:
+            end = held[-1][0]
+            start = max(0, self.pushed - len(self.buffer), min(held[0][0] - features.SR, end - int(isolate.MIN_SECONDS * features.SR)))
+            base = self.pushed - len(self.buffer)
+            audio = self.buffer[start - base : end - base].copy()
+        self._jobs.put((audio, start, held))
+
+    def drain(self):
+        """Wait for held windows to be checked (tests)."""
+        if self._held:
+            self._flush()
+        self._jobs.join()
+
+    def _worker(self):
+        while True:
+            job = self._jobs.get()
+            try:
+                self._check(*job)
+            except Exception as e:
+                print(f"Isolator check failed: {e}")
+            finally:
+                self._jobs.task_done()
+
+    def _check(self, audio, start, held):
+        voice = None
+        if len(audio) >= 4.6 * features.SR:  # shorter only right after start-up: judge it as is
+            try:
+                voice, cost = self.isolator(audio)
+                self.isolate_spent += cost
+            except Exception as e:
+                print(f"Voice isolation unavailable ({e}); alerting without it for a minute.")
+                self.isolate_off_until = self.pushed + 60 * features.SR
+        det = self.detector
+        for end, talk in held:
+            w = audio[end - features.SR - start : end - start]
+            score, voiced, top = det.score(w), False, det.top_bands(w)
+            if voice is not None:
+                masked, _, masked_top = det.score_masked(w, voice[end - features.SR - start : end - start])
+                voiced = masked < score / 2
+                if voiced:
+                    score, top = masked, masked_top
+            elif talk:
+                continue  # no isolator: fall back to the local talking pause
+            thr = self.threshold * (VOICED_THRESHOLD if voiced else 1)
+            top = [{"band_hz": f"{lo:.0f}-{hi:.0f}", "delta_db": b["delta_db"]} for b in top for lo, hi in [b["band_hz"]]]
+            with self.alert_lock:
+                alert = self.alerts.update(score, thr, top, force=True)
+            if alert:
+                alert["evidence"]["voice_removed"] = voiced
+                self._raised(alert, w, audio[-4 * features.SR :])
 
     def _explain(self, alert):
         expl = explainer.explain(alert, llm=self.llm)
@@ -242,6 +328,9 @@ class Engine:
             "labeler": self.labeler.labels if self.labeler else None,
             "guarded": time.time() < self.guard_until,
             "talking": self.talking(),
+            "checking": bool(self._held) or self._jobs.unfinished_tasks > 0,
+            "isolator": {"on": self._can_isolate(), "spent": self.isolate_spent, "budget": self.isolate_budget}
+            if self.isolator else None,
             "ignore_talking": self.ignore_talking,
             "inject": self.inject[0] if self.inject and time.time() < self.inject[1] else None,
             "alerts": self.alerts.alerts[-20:][::-1],

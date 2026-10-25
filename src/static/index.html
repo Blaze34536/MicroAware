@@ -16,6 +16,7 @@
     <dl class="meta">
       <div><dt>Spoken alerts</dt><dd><button type="button" id="sound" aria-pressed="false">Turn on</button></dd></div>
       <div><dt>Earth link</dt><dd><a href="/earth" target="_blank" id="link">–</a></dd></div>
+      <div><dt>Library</dt><dd><a href="/sounds" target="_blank">Sounds</a></dd></div>
       <div><dt>Listening to</dt><dd id="source">–</dd></div>
       <div><dt>Alerts</dt><dd id="pause">–</dd></div>
       <div><dt>UTC</dt><dd id="clock">--:--:--</dd></div>
@@ -82,11 +83,13 @@
       </div>
       <div>
         <h3>Fault names</h3>
-        <p>Make the fault on the fan, record it, then train. Two or three 15 s clips per fault is enough.</p>
+        <p>Recording the normal sound already teaches MicroAware these faults from simulated versions. Recording the real fault on your fan makes it more accurate: two or three 15 s clips per fault, then train.</p>
         <label>Fault
           <select id="faultLabel">
             <option value="imbalance">Imbalance (tape flag on a blade)</option>
-            <option value="loose_mount">Loose mount</option>
+            <option value="bearing">Worn bearing (whine)</option>
+            <option value="loose_mount">Loose mount (rattle)</option>
+            <option value="air_leak">Air leak (hiss)</option>
             <option value="friction">Friction (paper strip on the rotor)</option>
           </select>
         </label>
@@ -99,13 +102,16 @@
         <label for="scale">Alert threshold <output id="scaleOut">1.0×</output></label>
         <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1">
         <p>Raise it if footsteps or bumps cause alerts.</p>
-        <label class="check"><input id="ignoreTalking" type="checkbox" checked> Pause alerts while people talk</label>
+        <label class="check"><input id="ignoreTalking" type="checkbox" checked> Ignore people talking</label>
+        <p id="isolatorStatus"></p>
       </div>
       <div>
         <h3>Simulate a fault</h3>
         <p>Mixes a fault into the live audio for 10 seconds.</p>
-        <button type="button" data-fault="whine">Bearing whine</button>
-        <button type="button" data-fault="rattle">Loose-mount rattle</button>
+        <button type="button" data-fault="imbalance">Imbalance</button>
+        <button type="button" data-fault="bearing">Bearing whine</button>
+        <button type="button" data-fault="loose_mount">Loose-mount rattle</button>
+        <button type="button" data-fault="air_leak">Air-leak hiss</button>
       </div>
     </div>
   </details>

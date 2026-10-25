@@ -36,7 +36,7 @@ def test_injected_fault_raises_alert_that_can_be_acked(tmp_path):
     eng.fit_baseline(synth.fan(60, seed=1))
     client = TestClient(create_app(eng))
     run(eng, 1)
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 10})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 10})
     run(eng, 2, seed=500)
     alerts = client.get("/api/alerts").json()
     assert len(alerts) == 1 and alerts[0]["evidence"]["top_bands"]
@@ -59,7 +59,7 @@ def test_speaker_guard_holds_off_alerts_while_our_audio_plays(tmp_path):
     eng.fit_baseline(synth.fan(60, seed=1))
     client = TestClient(create_app(eng))
     client.post("/api/guard", json={"playing": True, "seconds": 30})
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 30})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 30})
     run(eng, 3, seed=500)
     assert client.get("/api/alerts").json() == []
     client.post("/api/guard", json={"playing": False})
@@ -72,7 +72,7 @@ def test_new_alert_gets_explained(tmp_path):
     eng = Engine(data_dir=tmp_path, llm=None)
     eng.fit_baseline(synth.fan(60, seed=1))
     client = TestClient(create_app(eng))
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 10})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 10})
     run(eng, 2, seed=500)
     deadline = time.time() + 5
     while time.time() < deadline and not client.get("/api/alerts").json()[0]["explanation"]:
@@ -87,11 +87,11 @@ def test_recorded_fault_clips_train_a_labeler_that_names_alerts(tmp_path):
     run(eng, 21)
     while eng.state == "training":
         time.sleep(0.1)
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 30})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 30})
     client.post("/api/labels/record", json={"label": "bearing", "seconds": 10})
     run(eng, 11, seed=200)
     assert client.get("/api/labels").json() == {"bearing": 1}
-    assert client.post("/api/labeler/train").json()["labels"] == ["bearing"]
+    assert client.post("/api/labeler/train").json()["labels"] == ["air_leak", "bearing", "imbalance", "loose_mount"]
     eng.alerts = type(eng.alerts)("fan_a")  # fresh alert state; the fault is still being injected
     run(eng, 2, seed=700)
     assert client.get("/api/alerts").json()[0]["label"] == "bearing"
@@ -104,7 +104,7 @@ def test_history_reports_rising_trend_and_abnormal_since(tmp_path):
     run(eng, 5)
     h = client.get("/api/history", params={"minutes": 10}).json()
     assert h["trend"] == "flat" and h["abnormal_since"] is None and len(h["scores"]) >= 9
-    client.post("/api/sim/inject", json={"fault": "whine", "seconds": 30})
+    client.post("/api/sim/inject", json={"fault": "bearing", "seconds": 30})
     run(eng, 5, seed=300)
     h = client.get("/api/history").json()
     assert h["trend"] == "rising" and h["abnormal_since"] is not None

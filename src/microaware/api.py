@@ -1,5 +1,6 @@
 """FastAPI app: dashboard, REST commands, and a 4 Hz WebSocket tick."""
 import asyncio
+import functools
 import os
 import threading
 import time
@@ -7,11 +8,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import audio_source
+from . import audio_source, explainer, isolate, sounds
 from .engine import FAULTS, Engine
 from .link import weather
 from .link.downlink import Downlink, SimLink, choose_mode
@@ -72,6 +73,30 @@ def create_app(engine, downlink=None):
     def earth():
         return FileResponse(STATIC / "earth.html")
 
+    @app.get("/sounds")
+    def sounds_page():
+        return FileResponse(STATIC / "sounds.html")
+
+    @app.get("/api/sounds")
+    def sound_catalog():
+        return sounds.catalog()
+
+    @app.get("/api/sounds/{sound_id}.wav")
+    def sound_wav(sound_id: str):
+        try:
+            return Response(sounds.wav(sound_id), media_type="audio/wav")
+        except KeyError:
+            raise HTTPException(404, f"No generated sound {sound_id}")
+
+    @app.post("/api/sounds/{sound_id}/analyze")
+    def sound_analyze(sound_id: str):
+        if not sound_id.startswith("fan_"):
+            raise HTTPException(422, "MicroAware learns one machine at a time: record a baseline of this machine to check it.")
+        try:
+            return sounds.analyze(sound_id)
+        except KeyError:
+            raise HTTPException(404, f"No sound {sound_id}")
+
     @app.get("/api/link/status")
     def get_link_status():
         need_downlink()
@@ -130,6 +155,12 @@ def create_app(engine, downlink=None):
     @app.get("/api/alerts/{alert_id}")
     def alert(alert_id: str):
         return engine.alerts.get(alert_id) or _404(alert_id)
+
+    @app.get("/api/alerts/{alert_id}/fix")
+    def alert_fix(alert_id: str):
+        """Repair steps from Gemini with the maintenance notes, or the built-in repair guide."""
+        alert = engine.alerts.get(alert_id) or _404(alert_id)
+        return explainer.fix(alert, llm=engine.llm)
 
     @app.post("/api/alerts/{alert_id}/ack")
     def ack(alert_id: str):
@@ -207,7 +238,8 @@ def build():
     """Entry point for uvicorn --factory. MICROAWARE_SOURCE: mic (default), synth, or file:<path.wav>."""
     load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     want = os.environ.get("MICROAWARE_SOURCE", "mic")
-    engine = Engine(source=want.split(":")[0])
+    key = os.environ.get("ELEVENLABS_API_KEY")
+    engine = Engine(source=want.split(":")[0], isolator=functools.partial(isolate.isolate, api_key=key) if key else None)
     on_audio = engine.push
     if os.environ.get("MICROAWARE_RECORD"):
         on_audio, _close = audio_source.recorder(engine.push, os.environ["MICROAWARE_RECORD"])

@@ -1,6 +1,8 @@
 # Setting up the voice assistant (ElevenLabs Agents)
 
-One-time setup in the ElevenLabs dashboard, about 10 minutes.
+Quickest: `cd src && ../.venv/bin/python tools/create_agent.py` creates the agent and its 5 tools through the API and prints the id to put in `.env` as `ELEVENLABS_AGENT_ID`. It uses ElevenLabs' default voice: voices with live moderation are refused for agents.
+
+By hand in the ElevenLabs dashboard instead, about 10 minutes:
 
 1. **Agents → Create agent → Blank.** Name it "MicroAware flight engineer".
 2. **System prompt:**
@@ -20,6 +22,7 @@ One-time setup in the ElevenLabs dashboard, about 10 minutes.
 | `get_status` | Current state of the fan: nominal or abnormal, score, threshold, active alerts. | none |
 | `get_history` | Score history and trend (rising, flat, falling), and how long the fan has been abnormal. | `minutes` (number, optional, default 10) |
 | `get_alert` | Details and explanation of one alert, including what to check. | `id` (string, an alert id like A-0003, or "latest") |
+| `get_fix` | Step-by-step repair instructions for one alert: tools needed, steps, safety, when to escalate. | `id` (string, an alert id or "latest") |
 | `acknowledge_alert` | Mark an alert as acknowledged by the crew. Only call when the crew says they're on it. | `id` (string, required) |
 
 5. Copy the agent id (starts with `agent_`) into `.env` as `ELEVENLABS_AGENT_ID`, then restart `./run.sh`.
