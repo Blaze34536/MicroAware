@@ -13,8 +13,10 @@ from .alerts import AlertManager
 from .detector import Detector
 from .labeler import Labeler
 from .link.downlink import render_image
+from .speech import SpeechTracker
 
 MACHINE = "fan_a"
+TALK_HANGOVER = 1.0  # keep alerts paused this long after talking, to cover gaps between words
 FAULTS = {"whine": synth.whine, "rattle": synth.rattle}
 
 
@@ -27,6 +29,10 @@ class Engine:
         self.downlink_sent = 0
         self._images = {}
         self.guard_until = 0.0  # speaker guard: no alerting while our own audio plays
+        self.speech = SpeechTracker()
+        self.ignore_talking = True  # no alerting while people talk near the mic
+        self.talking_until = 0  # in samples pushed, so the hangover is audio time
+        self._heard = 0  # samples already given to the speech tracker
         self.data_dir = Path(data_dir)
         self.source = source
         self.lock = threading.Lock()
@@ -136,6 +142,8 @@ class Engine:
         """Analyze the latest 1 s window. Called every 0.5 s."""
         with self.lock:
             window = self.buffer[-features.SR :].copy()
+            new = self.buffer[-min(self.pushed - self._heard, len(self.buffer)) :].copy() if self.pushed > self._heard else None
+            self._heard = self.pushed
             recent = self.buffer.copy()
             if self.recording is not None and self.record_progress() >= 1:
                 audio, self.recording = np.concatenate(self.recording), None
@@ -145,11 +153,15 @@ class Engine:
                     self.training = True
                     threading.Thread(target=self._train, args=(audio,), daemon=True).start()
         self.last["mel"] = features.logmel(window).mean(axis=1)
+        if new is not None:
+            self.speech.feed(new)
+            if self.speech.talking:
+                self.talking_until = self.pushed + int(TALK_HANGOVER * features.SR)
         det = self.detector
         if det is None or self.training or self.pushed < features.SR:
             self.last.update(score=None, residual=None, top_bands=[])
             return None
-        self.alerts.paused = time.time() < self.guard_until
+        self.alerts.paused = time.time() < self.guard_until or (self.ignore_talking and self.talking())
         score = det.score(window)
         top = [{"band_hz": f"{lo:.0f}-{hi:.0f}", "delta_db": d} for (lo, hi), d in
                ((b["band_hz"], b["delta_db"]) for b in det.top_bands(window))]
@@ -204,6 +216,9 @@ class Engine:
     def voice_path(self, alert_id):
         return self.data_dir / "voice" / f"{alert_id}.mp3"
 
+    def talking(self):
+        return self.pushed < self.talking_until
+
     def guard(self, playing, seconds=30):
         self.guard_until = time.time() + (seconds if playing else 0.5)
 
@@ -226,6 +241,8 @@ class Engine:
             "labels": self.label_counts(),
             "labeler": self.labeler.labels if self.labeler else None,
             "guarded": time.time() < self.guard_until,
+            "talking": self.talking(),
+            "ignore_talking": self.ignore_talking,
             "inject": self.inject[0] if self.inject and time.time() < self.inject[1] else None,
             "alerts": self.alerts.alerts[-20:][::-1],
         }
